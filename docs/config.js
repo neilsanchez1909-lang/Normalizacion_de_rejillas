@@ -4,7 +4,15 @@ export const CONFIG = {
 
   // Opciones del formulario
   retiro: { etiqueta: '¿La SED tiene retiro?', opciones: ['Sí', 'No'] },
-  clasificacion: { etiqueta: 'Clasificación de SED', opciones: ['A', 'B', 'C'] },
+  candadoElectronico: { etiqueta: '¿Cuenta con candado electrónico?', opciones: ['Sí', 'No'] },
+  clasificacion: {
+    etiqueta: 'Clasificación de SED',
+    opciones: [
+      { valor: 'A', descripcion: 'A: Antigua con techo alto' },
+      { valor: 'B', descripcion: 'B: Común' },
+      { valor: 'C', descripcion: 'C: Cuenta con dos puertas (una a BT y otra a MT)' }
+    ]
+  },
   fotos: { minimo: 1, maximo: 10, maxBytes: 10 * 1024 * 1024, tipos: ['image/jpeg', 'image/png'] },
   zonaHoraria: 'America/Lima',
   logoUrl: './logo_luz_del_sur.png'
@@ -20,9 +28,11 @@ export function validar(p, catalog) {
   if (!Object.hasOwn(catalog, p.sed)) errors.sed = 'Selecciona una SED válida.';
   if (!catalog[p.sed] || p.alimentador !== catalog[p.sed]) errors.alimentador = 'No existe un alimentador válido para esta SED.';
   if (!p.responsable?.trim()) errors.responsable = 'Ingresa el nombre y apellido del responsable.';
-  if (!Array.isArray(p.rejillasIntervenidas) || !p.rejillasIntervenidas.length || p.rejillasIntervenidas.some(v => !['Superior','Inferior'].includes(v))) errors.rejillas = 'Selecciona al menos una rejilla.';
+  if (!Array.isArray(p.rejillasIntervenidas) || !p.rejillasIntervenidas.length || p.rejillasIntervenidas.some(v => !['Rejilla(superior)','Malla(interior)'].includes(v))) errors.rejillas = 'Selecciona al menos una.';
   if (!CONFIG.retiro.opciones.includes(p.retiro)) errors.retiro = 'Selecciona una opción.';
-  if (!CONFIG.clasificacion.opciones.includes(p.clasificacion)) errors.clasificacion = 'Selecciona una opción.';
+  if (!CONFIG.candadoElectronico.opciones.includes(p.candadoElectronico)) errors.candadoElectronico = 'Selecciona una opción.';
+  const clasifValores = CONFIG.clasificacion.opciones.map(o => o.valor);
+  if (!clasifValores.includes(p.clasificacion)) errors.clasificacion = 'Selecciona una opción.';
   if (!Array.isArray(p.fotos) || p.fotos.length < CONFIG.fotos.minimo || p.fotos.length > CONFIG.fotos.maximo) errors.fotos = 'Adjunta entre 1 y 10 fotos.';
   return errors;
 }

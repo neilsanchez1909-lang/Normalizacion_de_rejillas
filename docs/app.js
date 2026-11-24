@@ -2,7 +2,7 @@ import { CONFIG, fechaLima, validar } from './config.js';
 const $ = id => document.getElementById(id);
 
 let catalog = {}, photos = [], busy = false, photoBusy = false, dialogAction = null;
-const ids = ['sed', 'alimentador', 'responsable', 'rejillas', 'retiro', 'clasificacion', 'fotos'];
+const ids = ['sed', 'alimentador', 'responsable', 'rejillas', 'retiro', 'candadoElectronico', 'clasificacion', 'fotos'];
 const iso = () => fechaLima();
 
 function date() {
@@ -23,10 +23,17 @@ function options(key) {
   b.textContent = '*';
   $(key + '-label').append(b);
   $(key).add(new Option('Selecciona una opción', ''));
-  c.opciones.forEach(v => $(key).add(new Option(v, v)));
+  c.opciones.forEach(v => {
+    if (typeof v === 'object') {
+      $(key).add(new Option(v.descripcion, v.valor));
+    } else {
+      $(key).add(new Option(v, v));
+    }
+  });
 }
 
 options('retiro');
+options('candadoElectronico');
 options('clasificacion');
 date();
 setInterval(date, 30000);
@@ -150,6 +157,7 @@ function showDialog(action, p) {
   $('yes').textContent = action === 'clear' ? 'Sí, limpiar' : 'Sí, registrar';
   
   if (p) {
+    const clasifDesc = (CONFIG.clasificacion.opciones.find(o => o.valor === p.clasificacion) || {}).descripcion || p.clasificacion;
     Object.entries({
       'SED': p.sed,
       'Alimentador': p.alimentador,
@@ -157,7 +165,8 @@ function showDialog(action, p) {
       'Responsable': p.responsable,
       'Rejillas': p.rejillasIntervenidas.join(', '),
       [CONFIG.retiro.etiqueta]: p.retiro,
-      [CONFIG.clasificacion.etiqueta]: p.clasificacion,
+      [CONFIG.candadoElectronico.etiqueta]: p.candadoElectronico,
+      [CONFIG.clasificacion.etiqueta]: clasifDesc,
       'Fotos': photos.length
     }).forEach(([k, v]) => {
       const dt = document.createElement('dt'), dd = document.createElement('dd');
@@ -197,19 +206,70 @@ function data() {
     responsable: $('responsable').value.trim(),
     rejillasIntervenidas: [...document.querySelectorAll('[name=rejilla]:checked')].map(x => x.value),
     retiro: $('retiro').value,
+    candadoElectronico: $('candadoElectronico').value,
     clasificacion: $('clasificacion').value,
     observacion: $('observacion') ? $('observacion').value.trim() : '',
     fotos: photos.map(x => x.file)
   };
 }
 
-$('sed').addEventListener('input', () => {
-  const sed = $('sed').value.trim().toUpperCase();
+// Autocompletado y menú desplegable para SED
+const sedInput = $('sed');
+const sedDropdown = $('sed-dropdown');
+
+function filterSed(query = '') {
+  const q = query.trim().toUpperCase();
+  const keys = Object.keys(catalog);
+  const matches = q ? keys.filter(k => k.includes(q)) : keys;
+  sedDropdown.replaceChildren();
+
+  if (!matches.length) {
+    const empty = document.createElement('div');
+    empty.className = 'combobox-empty';
+    empty.textContent = 'No se encontraron resultados';
+    sedDropdown.append(empty);
+  } else {
+    // Mostrar hasta 60 resultados para fluidez
+    matches.slice(0, 60).forEach(key => {
+      const item = document.createElement('div');
+      item.className = 'combobox-item';
+      item.textContent = key;
+      item.onmousedown = (e) => {
+        e.preventDefault();
+        selectSed(key);
+      };
+      sedDropdown.append(item);
+    });
+  }
+  sedDropdown.hidden = false;
+}
+
+function selectSed(sed) {
+  sedInput.value = sed;
   $('alimentador').value = catalog[sed] || '';
   $('sed-error').textContent = sed === '01214S' ? 'Esta SED tiene dos alimentadores: VM30 y VM35.' : '';
+  sedDropdown.hidden = true;
+}
+
+sedInput.addEventListener('focus', () => filterSed(sedInput.value));
+sedInput.addEventListener('input', () => {
+  const val = sedInput.value.trim().toUpperCase();
+  $('alimentador').value = catalog[val] || '';
+  $('sed-error').textContent = val === '01214S' ? 'Esta SED tiene dos alimentadores: VM30 y VM35.' : '';
+  filterSed(val);
+});
+sedInput.addEventListener('blur', () => {
+  setTimeout(() => { sedDropdown.hidden = true; }, 200);
 });
 
-$('form').onsubmit = e => {
+// Cargar catálogo de subestaciones
+try {
+  const response = await fetch('./catalog.json');
+  if (!response.ok) throw Error();
+  catalog = await response.json();
+} catch {
+  message('No se pudo cargar el catálogo de SED. Recarga la página.');
+}
   e.preventDefault();
   if (busy) return;
   if (photoBusy) {
@@ -267,6 +327,7 @@ $('yes').onclick = async () => {
       responsable: rawData.responsable,
       rejillasIntervenidas: rawData.rejillasIntervenidas,
       retiro: rawData.retiro,
+      candadoElectronico: rawData.candadoElectronico,
       clasificacion: rawData.clasificacion,
       observacion: rawData.observacion,
       fotos: fotosPayload
@@ -301,17 +362,5 @@ window.addEventListener('beforeunload', e => {
     e.returnValue = '';
   }
 });
-
-// Cargar catálogo de subestaciones
-try {
-  const response = await fetch('./catalog.json');
-  if (!response.ok) throw Error();
-  catalog = await response.json();
-  const frag = document.createDocumentFragment();
-  Object.entries(catalog).forEach(([sed, a]) => frag.append(new Option(sed + ' · ' + a, sed)));
-  $('seds').append(frag);
-} catch {
-  message('No se pudo cargar el catálogo de SED. Recarga la página.');
-}
 
 
