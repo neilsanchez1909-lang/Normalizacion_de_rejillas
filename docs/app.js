@@ -364,11 +364,6 @@ $('yes').onclick = async () => {
   }
 };
 
-window.addEventListener('beforeunload', e => {
-  if (photos.length || $('sed').value || $('responsable').value || busy) {
-    e.preventDefault();
-    e.returnValue = '';
-  }
-});
+// Se removió el beforeunload para evitar que el navegador muestre "¿Quieres salir del sitio web?" al registrar.
 
 
