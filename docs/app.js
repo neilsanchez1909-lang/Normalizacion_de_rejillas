@@ -18,10 +18,14 @@ function message(text, success = false) {
 
 function options(key) {
   const c = CONFIG[key];
-  $(key + '-label').replaceChildren(document.createTextNode(c.etiqueta + ' '));
-  const b = document.createElement('b');
-  b.textContent = '*';
-  $(key + '-label').append(b);
+  if (!c || !$(key)) return;
+  if ($(key + '-label')) {
+    $(key + '-label').replaceChildren(document.createTextNode(c.etiqueta + ' '));
+    const b = document.createElement('b');
+    b.textContent = '*';
+    $(key + '-label').append(b);
+  }
+  $(key).replaceChildren();
   $(key).add(new Option('Selecciona una opción', ''));
   c.opciones.forEach(v => {
     if (typeof v === 'object') {
