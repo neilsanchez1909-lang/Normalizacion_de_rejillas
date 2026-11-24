@@ -217,6 +217,15 @@ function data() {
   };
 }
 
+// Cargar catálogo de subestaciones
+try {
+  const response = await fetch('./catalog.json');
+  if (!response.ok) throw Error();
+  catalog = await response.json();
+} catch {
+  message('No se pudo cargar el catálogo de SED. Recarga la página.');
+}
+
 // Autocompletado y menú desplegable para SED
 const sedInput = $('sed');
 const sedDropdown = $('sed-dropdown');
@@ -255,26 +264,21 @@ function selectSed(sed) {
   sedDropdown.hidden = true;
 }
 
-sedInput.addEventListener('focus', () => filterSed(sedInput.value));
-sedInput.addEventListener('input', () => {
-  const val = sedInput.value.trim().toUpperCase();
-  $('alimentador').value = catalog[val] || '';
-  $('sed-error').textContent = val === '01214S' ? 'Esta SED tiene dos alimentadores: VM30 y VM35.' : '';
-  filterSed(val);
-});
-sedInput.addEventListener('blur', () => {
-  setTimeout(() => { sedDropdown.hidden = true; }, 200);
-});
-
-// Cargar catálogo de subestaciones
-try {
-  const response = await fetch('./catalog.json');
-  if (!response.ok) throw Error();
-  catalog = await response.json();
-} catch {
-  message('No se pudo cargar el catálogo de SED. Recarga la página.');
+if (sedInput && sedDropdown) {
+  sedInput.addEventListener('focus', () => filterSed(sedInput.value));
+  sedInput.addEventListener('click', () => filterSed(sedInput.value));
+  sedInput.addEventListener('input', () => {
+    const val = sedInput.value.trim().toUpperCase();
+    $('alimentador').value = catalog[val] || '';
+    $('sed-error').textContent = val === '01214S' ? 'Esta SED tiene dos alimentadores: VM30 y VM35.' : '';
+    filterSed(val);
+  });
+  sedInput.addEventListener('blur', () => {
+    setTimeout(() => { sedDropdown.hidden = true; }, 250);
+  });
 }
-  e.preventDefault();
+
+$('form').onsubmit = e => {
   if (busy) return;
   if (photoBusy) {
     message('Espera a que terminen de cargarse las fotos.');
