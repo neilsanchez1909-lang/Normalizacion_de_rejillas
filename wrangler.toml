@@ -1,0 +1,13 @@
+name = "normalizacion-rejilla-api"
+main = "dist/server/index.js"
+compatibility_date = "2026-11-24"
+
+[vars]
+# Origen del sitio, sin ruta ni barra final. Reemplazar TU-USUARIO.
+# Para varios orígenes, separarlos con comas; nunca usar asterisco.
+ALLOWED_ORIGINS = "https://TU-USUARIO.github.io"
+
+# NO guardar secretos aquí. Usar wrangler secret put o el panel de Cloudflare:
+# POWER_AUTOMATE_URL
+# API_ACCESS_KEY
+# POWER_AUTOMATE_BEARER_TOKEN (opcional para OAuth vigente)

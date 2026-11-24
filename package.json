@@ -1,0 +1,1 @@
+{"name":"normalizacion-rejilla-github","private":true,"type":"module","scripts":{"start":"node scripts/preview.mjs","build":"node scripts/build.mjs","test":"node --test scripts/test.mjs scripts/github.test.mjs"}}

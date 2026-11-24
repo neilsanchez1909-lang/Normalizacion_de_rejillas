@@ -1,0 +1,2 @@
+Coloca aquí tu logo. En docs/config.js usa logoUrl: './assets/logo.png'.
+No guardes aquí secretos ni fotos de intervenciones.
