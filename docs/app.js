@@ -198,6 +198,7 @@ function data() {
     rejillasIntervenidas: [...document.querySelectorAll('[name=rejilla]:checked')].map(x => x.value),
     retiro: $('retiro').value,
     clasificacion: $('clasificacion').value,
+    observacion: $('observacion') ? $('observacion').value.trim() : '',
     fotos: photos.map(x => x.file)
   };
 }
@@ -267,6 +268,7 @@ $('yes').onclick = async () => {
       rejillasIntervenidas: rawData.rejillasIntervenidas,
       retiro: rawData.retiro,
       clasificacion: rawData.clasificacion,
+      observacion: rawData.observacion,
       fotos: fotosPayload
     };
 
