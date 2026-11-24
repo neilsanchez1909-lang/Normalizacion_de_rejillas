@@ -3,8 +3,8 @@ export const CONFIG = {
   powerAutomateUrl: 'https://default1c0051dd45964b1a9849d060735057.69.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/13/workflows/3ee4e252a1f045139848bb62d020f170/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=-uAbXesA-QJFulrqqpLG1C3EOdbCI77L2RcKSZ8kXAc',
 
   // Opciones del formulario
-  retiro: { etiqueta: 'Retiro', opciones: ['Sí', 'No'] },
-  clasificacion: { etiqueta: 'Clasificación', opciones: ['A', 'B', 'C'] },
+  retiro: { etiqueta: '¿La SED tiene retiro?', opciones: ['Sí', 'No'] },
+  clasificacion: { etiqueta: 'Clasificación de SED', opciones: ['A', 'B', 'C'] },
   fotos: { minimo: 1, maximo: 10, maxBytes: 10 * 1024 * 1024, tipos: ['image/jpeg', 'image/png'] },
   zonaHoraria: 'America/Lima',
   logoUrl: './logo_luz_del_sur.png'
