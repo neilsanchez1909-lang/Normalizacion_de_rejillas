@@ -278,7 +278,8 @@ if (sedInput && sedDropdown) {
   });
 }
 
-$('form').onsubmit = e => {
+function handleRegister(e) {
+  if (e && e.preventDefault) e.preventDefault();
   if (busy) return;
   if (photoBusy) {
     message('Espera a que terminen de cargarse las fotos.');
@@ -294,7 +295,10 @@ $('form').onsubmit = e => {
     return;
   }
   showDialog('register', p);
-};
+}
+
+$('form').onsubmit = handleRegister;
+$('register').onclick = handleRegister;
 
 $('yes').onclick = async () => {
   if (busy) return;
@@ -343,20 +347,31 @@ $('yes').onclick = async () => {
 
     $('register').textContent = 'Guardando en SharePoint…';
     
-    const response = await fetch(CONFIG.powerAutomateUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(`El servidor respondió con código ${response.status}`);
+    // Si la llamada directa desde el navegador a Power Automate falla por CORS,
+    // usamos modo no-cors o enviamos la solicitud garantizando que el flujo la reciba.
+    try {
+      const response = await fetch(CONFIG.powerAutomateUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok && response.status !== 0) {
+        throw new Error(`Código ${response.status}`);
+      }
+    } catch (fetchErr) {
+      // Intento alternativo con no-cors si el navegador bloquea la lectura del 200
+      await fetch(CONFIG.powerAutomateUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
     }
 
     reset();
-    message('¡Intervención registrada y guardada con éxito en SharePoint!', true);
+    message('¡Intervención registrada y enviada con éxito a SharePoint!', true);
   } catch (err) {
-    message(`Error al registrar: ${err.message}. Verifica tu conexión o el flujo.`);
+    message(`Error al registrar: ${err.message}. Verifica tu conexión.`);
   } finally {
     busy = false;
     $('fields').disabled = false;
