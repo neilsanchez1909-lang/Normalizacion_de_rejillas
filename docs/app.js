@@ -312,5 +312,4 @@ try {
   message('No se pudo cargar el catálogo de SED. Recarga la página.');
 }
 
-// Ocultar banner de estado de intermediario ya que es directo
-$('connection').style.display = 'none';
+
