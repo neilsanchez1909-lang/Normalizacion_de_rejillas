@@ -1,38 +1,316 @@
 import { CONFIG, fechaLima, validar } from './config.js';
-const $=id=>document.getElementById(id);
-const apiUrl = path => CONFIG.apiBaseUrl.replace(/\/$/,'') + path;
-async function connectionStatus(){
-  if(!CONFIG.apiBaseUrl)return {configured:false};
-  const response=await fetch(apiUrl('/api/status'),{signal:AbortSignal.timeout(15000),credentials:'omit'});
-  if(!response.ok)throw Error('No se pudo comprobar la conexión con el servicio.');
-  return response.json();
+const $ = id => document.getElementById(id);
+
+let catalog = {}, photos = [], busy = false, photoBusy = false, dialogAction = null;
+const ids = ['sed', 'alimentador', 'responsable', 'rejillas', 'retiro', 'clasificacion', 'fotos'];
+const iso = () => fechaLima();
+
+function date() {
+  $('fecha').value = iso().split('-').reverse().join('/');
 }
-let catalog={}, photos=[], busy=false, snapshot=null, dialogAction=null, photoBusy=false;
-const ids=['sed','alimentador','responsable','rejillas','retiro','clasificacion','fotos'];
-const iso=()=>fechaLima();
-function date(){ $('fecha').value=iso().split('-').reverse().join('/'); }
-function message(text,success=false){$('message').hidden=false;$('message').textContent=text;$('message').className=success?'success':'';$('message').focus();}
-function options(key){const c=CONFIG[key];$(key+'-label').replaceChildren(document.createTextNode(c.etiqueta+' '));const b=document.createElement('b');b.textContent='*';$(key+'-label').append(b);$(key).add(new Option('Selecciona una opción',''));c.opciones.forEach(v=>$(key).add(new Option(v,v)));}
-options('retiro');options('clasificacion');date();setInterval(date,30000);
-if(CONFIG.logoUrl){const img=new Image();img.src=CONFIG.logoUrl;img.alt='Logo';img.style.maxHeight='54px';$('brand').replaceChildren(img);}
-function errors(values={}){ids.forEach(id=>{ $(id+'-error').textContent=values[id]||'';const el=$(id);if(el)el.setAttribute('aria-invalid',String(Boolean(values[id])));});}
-function data(){return {sed:$('sed').value.trim().toUpperCase(),alimentador:$('alimentador').value,fechaIntervencion:iso(),responsable:$('responsable').value.trim(),rejillasIntervenidas:[...document.querySelectorAll('[name=rejilla]:checked')].map(x=>x.value),retiro:$('retiro').value,clasificacion:$('clasificacion').value,evidencias:photos.map(x=>({nombre:x.nombre,tipoContenido:x.file.type,tamano:x.file.size}))};}
-$('sed').addEventListener('input',()=>{const sed=$('sed').value.trim().toUpperCase();$('alimentador').value=catalog[sed]||'';$('sed-error').textContent=sed==='01214S'?'Esta SED tiene dos alimentadores en el Excel: VM30 y VM35. Corrige el catálogo antes de registrarla.':'';});
-function render(){ $('previews').replaceChildren();photos.forEach((p,i)=>{const f=document.createElement('figure');f.className='photo';const img=new Image();img.src=p.url;img.alt='Evidencia '+(i+1);const b=document.createElement('button');b.type='button';b.textContent='×';b.setAttribute('aria-label','Eliminar foto '+(i+1));b.disabled=busy;b.onclick=()=>{if(busy)return;URL.revokeObjectURL(p.url);photos.splice(i,1);render();};const cap=document.createElement('figcaption');cap.textContent=p.file.name;f.append(img,b,cap);$('previews').append(f);});$('counter').textContent=`${photos.length} / ${CONFIG.fotos.maximo} fotos`;}
-async function add(files){if(busy||photoBusy)return;photoBusy=true;const rejected=[];try{for(const file of files){if(photos.length>=CONFIG.fotos.maximo){rejected.push('Máximo 10 fotos.');break;}if(!CONFIG.fotos.tipos.includes(file.type)){rejected.push(`${file.name}: solo JPEG o PNG.`);continue;}if(!file.size||file.size>CONFIG.fotos.maxBytes){rejected.push(`${file.name}: debe pesar entre 1 byte y 10 MB.`);continue;}const url=URL.createObjectURL(file);try{const img=new Image();img.src=url;await img.decode();}catch{URL.revokeObjectURL(url);rejected.push(`${file.name}: imagen dañada o no válida.`);continue;}photos.push({file,url,nombre:crypto.randomUUID()+ (file.type==='image/png'?'.png':'.jpg')});}render();$('photo-message').textContent=rejected.join(' ');}finally{photoBusy=false;$('files').value='';$('camera').value='';}}
-$('upload').onclick=()=>$('files').click();$('take').onclick=()=>$('camera').click();['files','camera'].forEach(id=>$(id).onchange=e=>add([...e.target.files]));
-$('drop').ondragover=e=>{e.preventDefault();if(!busy)$('drop').classList.add('drag');};$('drop').ondragleave=()=>$('drop').classList.remove('drag');$('drop').ondrop=e=>{e.preventDefault();$('drop').classList.remove('drag');add([...e.dataTransfer.files]);};
-function reset(){photos.forEach(p=>URL.revokeObjectURL(p.url));photos=[];snapshot=null;$('form').reset();date();errors();$('photo-message').textContent='';render();window.scrollTo({top:0,behavior:'smooth'});}
-function showDialog(action,p){dialogAction=action;$('access-field').hidden=action==='clear'||!CONFIG.apiBaseUrl;$('access-key').value='';$('summary').replaceChildren();$('dialog-title').textContent=action==='clear'?'¿Deseas limpiar el formulario?':'¿Estás seguro de registrar esta normalización de rejilla?';$('dialog-description').textContent=action==='clear'?'Se eliminarán los datos y fotos ingresados.':'Confirma que la información y las evidencias son correctas.';$('cancel').textContent=action==='clear'?'Cancelar':'No, volver';$('yes').textContent=action==='clear'?'Sí, limpiar':'Sí, registrar';if(p)Object.entries({'SED':p.sed,'Alimentador':p.alimentador,'Fecha':$('fecha').value,'Responsable':p.responsable,'Rejillas':p.rejillasIntervenidas.join(', '),[CONFIG.retiro.etiqueta]:p.retiro,[CONFIG.clasificacion.etiqueta]:p.clasificacion,'Fotos':photos.length}).forEach(([k,v])=>{const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=v;$('summary').append(dt,dd);});$('confirm').showModal();$('cancel').focus();}
-$('cancel').onclick=()=>{$('access-key').value='';$('confirm').close();};$('confirm').oncancel=()=>{$('access-key').value='';};$('clear').onclick=()=>{if(busy)return;if($('sed').value||$('responsable').value||$('retiro').value||$('clasificacion').value||photos.length||document.querySelector('[name=rejilla]:checked'))showDialog('clear');else reset();};
-$('form').onsubmit=e=>{e.preventDefault();if(busy)return;if(photoBusy){message('Espera a que terminen de cargarse las fotos.');return;}date();const p=data(),v=validar(p,catalog);errors(v);if(Object.keys(v).length){const id=Object.keys(v)[0];(id==='rejillas'?document.querySelector('[name=rejilla]'):id==='fotos'?$('upload'):$(id)).focus();return;}if(snapshot&&JSON.stringify(p)!==snapshot.fingerprint){message('Hay un envío pendiente de confirmar. Restaura los datos originales para reintentarlo, o verifica el registro en SharePoint antes de limpiar e iniciar otro.');return;}showDialog('register',p);};
-async function post(payload){const r=await fetch(apiUrl('/api/registro'),{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json','Authorization':'Bearer '+$('access-key').value},body:JSON.stringify(payload),signal:AbortSignal.timeout(120000)});let result;try{result=await r.json();}catch{throw Error('El servicio no devolvió una respuesta válida.');}if(!r.ok||result.ok!==true)throw Error(result.error||'No se pudo confirmar el registro.');if(result.idSolicitud!==payload.idSolicitud)throw Error('La respuesta no corresponde a esta solicitud.');return result;}
-function base64(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=()=>reject(Error('No se pudo leer una foto.'));r.readAsDataURL(file);});}
-$('yes').onclick=async()=>{if(busy)return;$('confirm').close();if(dialogAction==='clear'){reset();$('message').hidden=true;return;}busy=true;$('fields').disabled=true;render();$('register').textContent='Registrando…';try{const status=await connectionStatus();if(!status.configured)throw Error('Conexión con Power Automate pendiente de configurar. Tus datos y fotos se conservan.');if(!$('access-key').value.trim())throw Error('Ingresa la clave de conexión en la confirmación para registrar.');if(!snapshot){const p=data();snapshot={p,id:crypto.randomUUID(),fingerprint:JSON.stringify(p)};}const {p,id}=snapshot;await post({accion:'iniciar',idSolicitud:id,...p});for(let i=0;i<photos.length;i++){ $('register').textContent=`Enviando foto ${i+1} de ${photos.length}…`;await post({accion:'foto',idSolicitud:id,indice:i,evidencia:{...p.evidencias[i],contenidoBase64:await base64(photos[i].file)}});}$('register').textContent='Confirmando registro…';const result=await post({accion:'finalizar',idSolicitud:id,totalEvidencias:photos.length});if(!result.idRegistro||result.evidenciasGuardadas!==photos.length)throw Error('No se confirmó el guardado de todas las evidencias.');reset();message('Normalización de rejilla registrada correctamente.',true);}catch(e){message((e.name==='TimeoutError'?'No se pudo confirmar el resultado a tiempo.':e.message)+' Puedes reintentar; se conservará el identificador del envío.');}finally{$('access-key').value='';busy=false;$('fields').disabled=false;$('register').textContent='Registrar';render();}};
-window.addEventListener('beforeunload',e=>{if(photos.length||$('sed').value||$('responsable').value||busy){e.preventDefault();e.returnValue='';}});
-try{
-  const response=await fetch('./catalog.json');if(!response.ok)throw Error();catalog=await response.json();
-  const frag=document.createDocumentFragment();Object.entries(catalog).forEach(([sed,a])=>frag.append(new Option(sed+' · '+a,sed)));$('seds').append(frag);
-}catch{message('No se pudo cargar el catálogo. Recarga la página antes de registrar.');}
-try{const s=await connectionStatus();$('connection').textContent=s.configured?'Conexión con Power Automate configurada':'Conexión con Power Automate pendiente de configurar';$('connection').classList.toggle('ready',s.configured);}
-catch{$('connection').textContent='No se pudo comprobar la conexión. El formulario conserva tus datos.';}
+
+function message(text, success = false) {
+  $('message').hidden = false;
+  $('message').textContent = text;
+  $('message').className = success ? 'success' : '';
+  $('message').focus();
+}
+
+function options(key) {
+  const c = CONFIG[key];
+  $(key + '-label').replaceChildren(document.createTextNode(c.etiqueta + ' '));
+  const b = document.createElement('b');
+  b.textContent = '*';
+  $(key + '-label').append(b);
+  $(key).add(new Option('Selecciona una opción', ''));
+  c.opciones.forEach(v => $(key).add(new Option(v, v)));
+}
+
+options('retiro');
+options('clasificacion');
+date();
+setInterval(date, 30000);
+
+if (CONFIG.logoUrl) {
+  const img = new Image();
+  img.src = CONFIG.logoUrl;
+  img.alt = 'Logo';
+  img.style.maxHeight = '52px';
+  img.style.objectFit = 'contain';
+  $('brand').replaceChildren(img);
+}
+
+function errors(values = {}) {
+  ids.forEach(id => {
+    $(id + '-error').textContent = values[id] || '';
+    const el = $(id);
+    if (el) el.setAttribute('aria-invalid', String(Boolean(values[id])));
+  });
+}
+
+function render() {
+  $('previews').replaceChildren();
+  photos.forEach((p, i) => {
+    const f = document.createElement('figure');
+    f.className = 'photo';
+    const img = new Image();
+    img.src = p.url;
+    img.alt = 'Evidencia ' + (i + 1);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = '×';
+    b.setAttribute('aria-label', 'Eliminar foto ' + (i + 1));
+    b.disabled = busy;
+    b.onclick = () => {
+      if (busy) return;
+      URL.revokeObjectURL(p.url);
+      photos.splice(i, 1);
+      render();
+    };
+    const cap = document.createElement('figcaption');
+    cap.textContent = p.file.name;
+    f.append(img, b, cap);
+    $('previews').append(f);
+  });
+  $('counter').textContent = `${photos.length} / ${CONFIG.fotos.maximo} fotos`;
+}
+
+async function add(files) {
+  if (busy || photoBusy) return;
+  photoBusy = true;
+  const rejected = [];
+  try {
+    for (const file of files) {
+      if (photos.length >= CONFIG.fotos.maximo) {
+        rejected.push('Máximo 10 fotos.');
+        break;
+      }
+      if (!CONFIG.fotos.tipos.includes(file.type)) {
+        rejected.push(`${file.name}: solo JPEG o PNG.`);
+        continue;
+      }
+      if (!file.size || file.size > CONFIG.fotos.maxBytes) {
+        rejected.push(`${file.name}: debe pesar entre 1 byte y 10 MB.`);
+        continue;
+      }
+      const url = URL.createObjectURL(file);
+      try {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+      } catch {
+        URL.revokeObjectURL(url);
+        rejected.push(`${file.name}: imagen dañada o no válida.`);
+        continue;
+      }
+      photos.push({ file, url, nombre: file.name });
+    }
+    render();
+    $('photo-message').textContent = rejected.join(' ');
+  } finally {
+    photoBusy = false;
+    $('files').value = '';
+    $('camera').value = '';
+  }
+}
+
+$('upload').onclick = () => $('files').click();
+$('take').onclick = () => $('camera').click();
+['files', 'camera'].forEach(id => $(id).onchange = e => add([...e.target.files]));
+
+$('drop').ondragover = e => {
+  e.preventDefault();
+  if (!busy) $('drop').classList.add('drag');
+};
+$('drop').ondragleave = () => $('drop').classList.remove('drag');
+$('drop').ondrop = e => {
+  e.preventDefault();
+  $('drop').classList.remove('drag');
+  add([...e.dataTransfer.files]);
+};
+
+function reset() {
+  photos.forEach(p => URL.revokeObjectURL(p.url));
+  photos = [];
+  $('form').reset();
+  date();
+  errors();
+  $('photo-message').textContent = '';
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showDialog(action, p) {
+  dialogAction = action;
+  $('access-field').hidden = true;
+  $('summary').replaceChildren();
+  $('dialog-title').textContent = action === 'clear' ? '¿Deseas limpiar el formulario?' : '¿Estás seguro de registrar esta normalización de rejilla?';
+  $('dialog-description').textContent = action === 'clear' ? 'Se eliminarán los datos y fotos ingresados.' : 'Confirma que la información y las evidencias son correctas.';
+  $('cancel').textContent = action === 'clear' ? 'Cancelar' : 'No, volver';
+  $('yes').textContent = action === 'clear' ? 'Sí, limpiar' : 'Sí, registrar';
+  
+  if (p) {
+    Object.entries({
+      'SED': p.sed,
+      'Alimentador': p.alimentador,
+      'Fecha': $('fecha').value,
+      'Responsable': p.responsable,
+      'Rejillas': p.rejillasIntervenidas.join(', '),
+      [CONFIG.retiro.etiqueta]: p.retiro,
+      [CONFIG.clasificacion.etiqueta]: p.clasificacion,
+      'Fotos': photos.length
+    }).forEach(([k, v]) => {
+      const dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.textContent = k;
+      dd.textContent = v;
+      $('summary').append(dt, dd);
+    });
+  }
+  $('confirm').showModal();
+  $('cancel').focus();
+}
+
+$('cancel').onclick = () => $('confirm').close();
+$('clear').onclick = () => {
+  if (busy) return;
+  if ($('sed').value || $('responsable').value || $('retiro').value || $('clasificacion').value || photos.length || document.querySelector('[name=rejilla]:checked')) {
+    showDialog('clear');
+  } else {
+    reset();
+  }
+};
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = () => reject(new Error(`Error al leer archivo ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+function data() {
+  return {
+    sed: $('sed').value.trim().toUpperCase(),
+    alimentador: $('alimentador').value,
+    fechaIntervencion: iso(),
+    responsable: $('responsable').value.trim(),
+    rejillasIntervenidas: [...document.querySelectorAll('[name=rejilla]:checked')].map(x => x.value),
+    retiro: $('retiro').value,
+    clasificacion: $('clasificacion').value,
+    fotos: photos.map(x => x.file)
+  };
+}
+
+$('sed').addEventListener('input', () => {
+  const sed = $('sed').value.trim().toUpperCase();
+  $('alimentador').value = catalog[sed] || '';
+  $('sed-error').textContent = sed === '01214S' ? 'Esta SED tiene dos alimentadores: VM30 y VM35.' : '';
+});
+
+$('form').onsubmit = e => {
+  e.preventDefault();
+  if (busy) return;
+  if (photoBusy) {
+    message('Espera a que terminen de cargarse las fotos.');
+    return;
+  }
+  date();
+  const p = data();
+  const v = validar(p, catalog);
+  errors(v);
+  if (Object.keys(v).length) {
+    const id = Object.keys(v)[0];
+    (id === 'rejillas' ? document.querySelector('[name=rejilla]') : id === 'fotos' ? $('upload') : $(id)).focus();
+    return;
+  }
+  showDialog('register', p);
+};
+
+$('yes').onclick = async () => {
+  if (busy) return;
+  $('confirm').close();
+  if (dialogAction === 'clear') {
+    reset();
+    $('message').hidden = true;
+    return;
+  }
+
+  if (!CONFIG.powerAutomateUrl) {
+    message('La URL de Power Automate aún no está configurada en config.js');
+    return;
+  }
+
+  busy = true;
+  $('fields').disabled = true;
+  $('register').textContent = 'Procesando evidencias…';
+
+  try {
+    const rawData = data();
+    
+    // Convertir fotos a Base64 para Power Automate
+    const fotosPayload = [];
+    for (let i = 0; i < photos.length; i++) {
+      $('register').textContent = `Preparando foto ${i + 1} de ${photos.length}…`;
+      const base64 = await fileToBase64(photos[i].file);
+      fotosPayload.push({
+        nombre: photos[i].file.name,
+        contenidoBytes: base64
+      });
+    }
+
+    const payload = {
+      sed: rawData.sed,
+      alimentador: rawData.alimentador,
+      fechaIntervencion: rawData.fechaIntervencion,
+      responsable: rawData.responsable,
+      rejillasIntervenidas: rawData.rejillasIntervenidas,
+      retiro: rawData.retiro,
+      clasificacion: rawData.clasificacion,
+      fotos: fotosPayload
+    };
+
+    $('register').textContent = 'Guardando en SharePoint…';
+    
+    const response = await fetch(CONFIG.powerAutomateUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`El servidor respondió con código ${response.status}`);
+    }
+
+    reset();
+    message('¡Intervención registrada y guardada con éxito en SharePoint!', true);
+  } catch (err) {
+    message(`Error al registrar: ${err.message}. Verifica tu conexión o el flujo.`);
+  } finally {
+    busy = false;
+    $('fields').disabled = false;
+    $('register').textContent = 'Registrar';
+  }
+};
+
+window.addEventListener('beforeunload', e => {
+  if (photos.length || $('sed').value || $('responsable').value || busy) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// Cargar catálogo de subestaciones
+try {
+  const response = await fetch('./catalog.json');
+  if (!response.ok) throw Error();
+  catalog = await response.json();
+  const frag = document.createDocumentFragment();
+  Object.entries(catalog).forEach(([sed, a]) => frag.append(new Option(sed + ' · ' + a, sed)));
+  $('seds').append(frag);
+} catch {
+  message('No se pudo cargar el catálogo de SED. Recarga la página.');
+}
+
+// Ocultar banner de estado de intermediario ya que es directo
+$('connection').style.display = 'none';
