@@ -193,10 +193,18 @@ $('clear').onclick = () => {
   }
 };
 
+function sanitizeFileName(name) {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onload = () => {
+      const res = reader.result;
+      const base64 = res.includes(',') ? res.split(',')[1] : res;
+      resolve(base64);
+    };
     reader.onerror = () => reject(new Error(`Error al leer archivo ${file.name}`));
     reader.readAsDataURL(file);
   });
@@ -327,7 +335,7 @@ $('yes').onclick = async () => {
       $('register').textContent = `Preparando foto ${i + 1} de ${photos.length}…`;
       const base64 = await fileToBase64(photos[i].file);
       fotosPayload.push({
-        nombre: photos[i].file.name,
+        nombre: sanitizeFileName(photos[i].file.name),
         contenidoBytes: base64
       });
     }
